@@ -1,0 +1,26 @@
+# Godot
+.godot/
+.export/
+export_presets.cfg
+.import/
+*.import
+
+# Android export
+/android/
+
+# Mono / Visual Studio
+.mono/
+.vscode/
+.vs/
+*.userprefs
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# OneDrive
+~$*
+
+# Node/generic
+node_modules/
