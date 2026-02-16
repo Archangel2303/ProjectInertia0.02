@@ -1,10 +1,8 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene format=3 uid="uid://du1ha8ae6usv4"]
 
-[ext_resource type="PackedScene" path="res://assets/visual/Magnum/Magnum.tscn" id="1_magnum"]
+[ext_resource type="PackedScene" uid="uid://bnmi22pcphrc5" path="res://assets/visual/Magnum/Magnum.tscn" id="1_magnum"]
 
-[node name="GunModelWrapper" type="Node3D"]
+[node name="GunModelWrapper" type="Node3D" unique_id=1095181830]
 
-[node name="Model" parent="." instance=ExtResource("1_magnum")]
-position = Vector3(0, 0.14, -0.2)
-rotation = Vector3(0, 3.14159, 0)
-scale = Vector3(0.0646, 0.0646, 0.0646)
+[node name="Model" parent="." unique_id=1899617442 instance=ExtResource("1_magnum")]
+transform = Transform3D(-2.8237557e-09, 0, 0.0646, 0, 0.0646, 0, -0.0646, 0, -2.8237557e-09, 0, 0, 0)

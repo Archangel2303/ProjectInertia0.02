@@ -34,8 +34,18 @@ const DEFAULT_MODEL_WRAPPER_SCENE: PackedScene = preload("res://scenes/visual/gu
 @export_group("External Rotation")
 @export var recoil_backflip_kick_degrees: float = 780.0
 @export var recoil_roll_kick_degrees: float = 80.0
+@export var recoil_yaw_torque_degrees: float = 420.0
 @export var angular_restore_spring: float = 4.8
 @export var angular_damping: float = 3.2
+@export var collision_yaw_torque: float = 0.085
+@export var angular_speed_max: float = 26.0
+@export var external_rotation_influence_time: float = 0.22
+@export var passive_roll_upright_spring: float = 13.5
+@export var passive_roll_damping: float = 11.0
+
+@export_group("Smoothing")
+@export var linear_rest_threshold: float = 0.35
+@export var bounce_min_speed: float = 0.9
 
 @export_group("Ground")
 @export var floor_y: float = 0.8
@@ -57,6 +67,9 @@ var _model_wrapper_instance: Node3D
 var _motion_velocity: Vector3 = Vector3.ZERO
 var _base_y: float = 0.8
 var _angular_velocity: Vector3 = Vector3.ZERO
+var _spawn_position: Vector3 = Vector3.ZERO
+var _physics_armed: bool = false
+var _external_rotation_timer: float = 0.0
 var _last_yaw_radians: float = 0.0
 var _unwrapped_yaw_degrees: float = 0.0
 
@@ -69,9 +82,12 @@ func _ready() -> void:
 	if _bullet_spawn_point == null:
 		push_error("Gun is missing required child spawn point node: BulletSpawnPoint")
 	_base_y = position.y
+	_spawn_position = position
 	floor_y = _base_y
 	_last_yaw_radians = rotation.y
 	_unwrapped_yaw_degrees = 0.0
+	_physics_armed = false
+	_external_rotation_timer = 0.0
 	_setup_visual_wrapper()
 	_apply_skin()
 
@@ -116,9 +132,18 @@ func _process(delta: float) -> void:
 	_update_unwrapped_rotation()
 
 func _physics_process(delta: float) -> void:
+	if not _physics_armed:
+		position = _spawn_position
+		_motion_velocity = Vector3.ZERO
+		velocity = Vector3.ZERO
+		return
+
+	_external_rotation_timer = maxf(0.0, _external_rotation_timer - delta)
+
 	var pre_slide_velocity := _motion_velocity
-	_motion_velocity.x = move_toward(_motion_velocity.x, 0.0, recoil_drag * delta)
-	_motion_velocity.z = move_toward(_motion_velocity.z, 0.0, recoil_drag * delta)
+	var drag_lerp: float = 1.0 - exp(-recoil_drag * delta)
+	_motion_velocity.x = lerp(_motion_velocity.x, 0.0, drag_lerp)
+	_motion_velocity.z = lerp(_motion_velocity.z, 0.0, drag_lerp)
 	_motion_velocity.y -= recoil_gravity * delta
 
 	velocity = _motion_velocity
@@ -132,9 +157,16 @@ func _physics_process(delta: float) -> void:
 		if incoming.length_squared() < 0.0001:
 			incoming = _motion_velocity
 		var speed := incoming.length()
-		_motion_velocity = incoming.bounce(normal) * bounce_restitution
-		_motion_velocity *= collision_velocity_damping
+		if speed > bounce_min_speed:
+			_motion_velocity = incoming.bounce(normal) * bounce_restitution
+			_motion_velocity *= collision_velocity_damping
+		else:
+			_motion_velocity.x *= 0.8
+			_motion_velocity.z *= 0.8
+			if _motion_velocity.y < 0.0:
+				_motion_velocity.y = 0.0
 		_apply_angular_kick_from_normal(normal, speed)
+		_apply_yaw_kick_from_collision(normal, incoming, speed)
 		impacted.emit(speed)
 		pre_slide_velocity = _motion_velocity
 
@@ -142,14 +174,26 @@ func _physics_process(delta: float) -> void:
 		position.y = floor_y
 		if _motion_velocity.y < 0.0:
 			_motion_velocity.y = 0.0
+	if is_on_floor() and Vector2(_motion_velocity.x, _motion_velocity.z).length() < linear_rest_threshold:
+		_motion_velocity.x = 0.0
+		_motion_velocity.z = 0.0
 
 	var pitch_error := wrapf(rotation.x, -PI, PI)
 	var roll_error := wrapf(rotation.z, -PI, PI)
 	_angular_velocity.x += (-pitch_error * angular_restore_spring) * delta
 	_angular_velocity.z += (-roll_error * angular_restore_spring) * delta
 	_angular_velocity.x = lerp(_angular_velocity.x, 0.0, 1.0 - exp(-angular_damping * delta))
+	_angular_velocity.y = lerp(_angular_velocity.y, 0.0, 1.0 - exp(-(angular_damping * 0.72) * delta))
 	_angular_velocity.z = lerp(_angular_velocity.z, 0.0, 1.0 - exp(-angular_damping * delta))
+	if _external_rotation_timer <= 0.0:
+		var passive_roll_error := wrapf(rotation.z, -PI, PI)
+		_angular_velocity.z += (-passive_roll_error * passive_roll_upright_spring) * delta
+		_angular_velocity.z = lerp(_angular_velocity.z, 0.0, 1.0 - exp(-passive_roll_damping * delta))
+	_angular_velocity = _angular_velocity.limit_length(angular_speed_max)
+	if _angular_velocity.length() < 0.04 and _motion_velocity.length() < linear_rest_threshold * 0.65:
+		_angular_velocity = Vector3.ZERO
 	rotate_object_local(Vector3.RIGHT, _angular_velocity.x * delta)
+	rotate_object_local(Vector3.UP, _angular_velocity.y * delta)
 	rotate_object_local(Vector3.FORWARD, _angular_velocity.z * delta)
 
 func try_fire() -> bool:
@@ -161,6 +205,8 @@ func try_fire() -> bool:
 	if not _fire_component.try_fire(_bullet_spawn_point, get_parent()):
 		_ammo_component.add_one()
 		return false
+	if not _physics_armed:
+		_arm_physics()
 	_spin_component.flip_direction()
 	_apply_recoil_impulse()
 	shot_fired.emit()
@@ -226,16 +272,32 @@ func _apply_recoil_impulse() -> void:
 		_motion_velocity = _motion_velocity.normalized() * recoil_max_speed
 	var backflip_dir := -1.0 if _spin_component.direction >= 0.0 else 1.0
 	_angular_velocity.x += deg_to_rad(recoil_backflip_kick_degrees) * backflip_dir
+	_angular_velocity.y += deg_to_rad(recoil_yaw_torque_degrees) * _spin_component.direction
 	_angular_velocity.z += deg_to_rad(recoil_roll_kick_degrees) * -_spin_component.direction
+	_register_external_rotation_influence(1.0)
 	_spin_component.add_recoil_spin(recoil_spin_kick_degrees)
 
 func _apply_angular_kick_from_normal(normal: Vector3, impulse_speed: float) -> void:
 	var kick_scale := impulse_speed * collision_angular_kick
 	_angular_velocity.x += normal.z * kick_scale
 	_angular_velocity.z += -normal.x * kick_scale
+	_register_external_rotation_influence(clampf(impulse_speed / 6.0, 0.55, 1.8))
+
+func _apply_yaw_kick_from_collision(normal: Vector3, incoming_velocity: Vector3, impulse_speed: float) -> void:
+	var horizontal_incoming := Vector3(incoming_velocity.x, 0.0, incoming_velocity.z)
+	if horizontal_incoming.length_squared() < 0.0001:
+		return
+	var tangent := horizontal_incoming.normalized().cross(normal)
+	_angular_velocity.y += tangent.y * impulse_speed * collision_yaw_torque
+
+func _register_external_rotation_influence(scale: float) -> void:
+	_external_rotation_timer = maxf(_external_rotation_timer, external_rotation_influence_time * scale)
 
 func _update_unwrapped_rotation() -> void:
 	var current_yaw := rotation.y
 	var delta_yaw := wrapf(current_yaw - _last_yaw_radians, -PI, PI)
 	_unwrapped_yaw_degrees += rad_to_deg(delta_yaw)
 	_last_yaw_radians = current_yaw
+
+func _arm_physics() -> void:
+	_physics_armed = true

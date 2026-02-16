@@ -1,7 +1,6 @@
 extends CharacterBody3D
 class_name Enemy
 
-const DEFAULT_MODEL_WRAPPER_SCENE: PackedScene = preload("res://scenes/visual/enemy_model_wrapper.tscn")
 const HIT_LIMBS := 0
 const HIT_TORSO := 1
 const HIT_MIDSECTION := 2
@@ -13,9 +12,6 @@ signal killed(points: int, headshot: bool, hit_location: int)
 @export_enum("Basic", "Armored", "BasicShield", "ArmoredShield") var enemy_type: int = 0
 @export var move_speed: float = 2.2
 @export var is_static: bool = false
-@export_group("Visual")
-@export var use_model_wrapper: bool = false
-@export var model_wrapper_scene: PackedScene = DEFAULT_MODEL_WRAPPER_SCENE
 
 var _armor_hits_left: int = 1
 var _shield_hits_left: int = 0
@@ -25,9 +21,6 @@ var _target: Node3D
 @onready var _body_mesh: MeshInstance3D = $BodyMesh
 @onready var _shield_mesh: MeshInstance3D = $ShieldMesh
 @onready var _head_area: Area3D = $HeadArea
-@onready var _visual_anchor: Node3D = $VisualAnchor
-
-var _model_wrapper_instance: Node3D
 
 func _ready() -> void:
 	match enemy_type:
@@ -46,7 +39,7 @@ func _ready() -> void:
 	_shield_mesh.visible = _shield_hits_left > 0
 	_head_area.add_to_group("enemy_head")
 	_apply_visuals()
-	_setup_visual_wrapper()
+	_body_mesh.visible = true
 
 func set_target(target: Node3D) -> void:
 	_target = target
@@ -94,20 +87,6 @@ func _apply_visuals() -> void:
 	shield_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	shield_mat.albedo_color = Color(0.3, 0.7, 1.0, 0.45)
 	_shield_mesh.set_surface_override_material(0, shield_mat)
-
-func _setup_visual_wrapper() -> void:
-	_body_mesh.visible = true
-	if not use_model_wrapper:
-		return
-	if model_wrapper_scene == null:
-		return
-	var wrapper := model_wrapper_scene.instantiate()
-	if wrapper == null:
-		return
-	if wrapper is Node3D:
-		_model_wrapper_instance = wrapper
-		_visual_anchor.add_child(_model_wrapper_instance)
-		_body_mesh.visible = false
 
 func is_static_enemy() -> bool:
 	return is_static

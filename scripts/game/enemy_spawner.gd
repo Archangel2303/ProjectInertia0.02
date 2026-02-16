@@ -24,26 +24,23 @@ var _mode: int = MODE_LEVEL
 var _wave_queue: Array[int] = []
 
 func _ready() -> void:
-	_rng.randomize()
+	_set_deterministic_seed(MODE_LEVEL, 0)
 
 func configure_for_level(level_index: int) -> void:
 	_mode = MODE_LEVEL
+	_reset_runtime_state()
+	_set_deterministic_seed(MODE_LEVEL, level_index)
 	if level_index == 0:
-		_wave_queue.clear()
 		spawn_radius = 8.0
 		_spawn_level_one_static_layout()
 		return
 	_wave_queue = _build_level_wave(level_index)
 	spawn_radius = 12.0 + float(level_index) * 0.6
-	_spawn_timer = 0.0
 
 func configure_for_endless() -> void:
 	_mode = MODE_ENDLESS
-	_wave_queue.clear()
-	_spawn_timer = 0.0
-	_endless_elapsed_total = 0.0
-	_endless_player_kills = 0
-	_alive_count = 0
+	_reset_runtime_state()
+	_set_deterministic_seed(MODE_ENDLESS, 0)
 
 func set_endless_progress(kills: int) -> void:
 	_endless_player_kills = max(kills, 0)
@@ -172,3 +169,16 @@ func _pick_enemy_type_for_difficulty(difficulty: float) -> int:
 	if roll < 0.65:
 		return 2
 	return 3
+
+func _reset_runtime_state() -> void:
+	_wave_queue.clear()
+	_spawn_timer = 0.0
+	_endless_elapsed_total = 0.0
+	_endless_player_kills = 0
+	_alive_count = 0
+
+func _set_deterministic_seed(mode: int, level_index: int) -> void:
+	var mode_key: int = mode + 1
+	var level_key: int = level_index + 1
+	var computed_seed: int = mode_key * 1_000_003 + level_key * 7_919
+	_rng.seed = computed_seed

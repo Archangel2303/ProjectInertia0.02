@@ -113,6 +113,9 @@ func compute_endless_score(enemies_killed: int, survival_time_seconds: float) ->
 func all_enemies_dead(enemies: Array[Node]) -> bool:
 	# Returns true only when no valid enemy instance remains in the provided list.
 	for enemy in enemies:
-		if enemy != null and is_instance_valid(enemy):
-			return false
+		if enemy == null or not is_instance_valid(enemy):
+			continue
+		if enemy.is_queued_for_deletion():
+			continue
+		return false
 	return true

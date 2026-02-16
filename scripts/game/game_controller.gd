@@ -11,8 +11,8 @@ const ScoreSystemScript = preload("res://scripts/core/score_system.gd")
 @onready var _spawner: EnemySpawner = $EnemySpawner
 @onready var _hud: Node = $HUD
 @onready var _camera: Node = $Camera3D
-@onready var _ground: StaticBody3D = $Ground
-@onready var _level_one_room: Node3D = $LevelOneRoom
+@onready var _ground: StaticBody3D = $LevelContent/Ground
+@onready var _level_one_room: Node3D = $LevelContent/LevelOneRoom
 @onready var _endless_chunk_manager: EndlessChunkManager = $EndlessChunkManager
 
 func _session() -> Node:
@@ -24,6 +24,7 @@ func _ads() -> Node:
 var _score: int = 0
 var _kills: int = 0
 var _run_ended: bool = false
+var _run_started: bool = false
 var _ad_debug_tick: float = 0.0
 var _ad_debug_visible: bool = true
 var _slow_time_active: bool = false
@@ -63,7 +64,8 @@ func _process(delta: float) -> void:
 
 	# Runtime scoring and completion are split into small helpers so each gameplay
 	# system (time, enemies, score, ammo prompts) is understandable in isolation.
-	_score_system.tick(delta, _slow_time_active)
+	if _run_started:
+		_score_system.tick(delta, _slow_time_active)
 	_update_slow_time_scaling(delta)
 	if _should_end_level():
 		_end_run(true)
@@ -195,9 +197,10 @@ func _on_enemy_exited(enemy: Node) -> void:
 	_active_enemies.erase(enemy)
 
 func all_enemies_dead() -> bool:
-	_active_enemies = _active_enemies.filter(func(enemy: Node) -> bool:
-		return enemy != null and is_instance_valid(enemy)
-	)
+	for i in range(_active_enemies.size() - 1, -1, -1):
+		var enemy: Node = _active_enemies[i]
+		if enemy == null or not is_instance_valid(enemy):
+			_active_enemies.remove_at(i)
 	return _score_system.all_enemies_dead(_active_enemies)
 
 func _on_ammo_changed(current: int, max_ammo: int) -> void:
@@ -208,6 +211,7 @@ func _on_fire_pressed() -> void:
 		return
 	var did_fire: bool = _gun.try_fire()
 	if did_fire:
+		_run_started = true
 		_camera.on_fired()
 	if not did_fire and not _gun.has_ammo():
 		var ad_available: bool = _session().can_use_extra_bullet_ad() and _ads().can_show_rewarded_ad("extra_bullet")

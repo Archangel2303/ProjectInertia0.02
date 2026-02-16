@@ -1,0 +1,84 @@
+[gd_scene format=4]
+
+[sub_resource type="BoxShape3D" id="1_ground_shape"]
+size = Vector3(35, 0.3, 35)
+
+[sub_resource type="BoxMesh" id="2_ground_mesh"]
+size = Vector3(35, 0.3, 35)
+
+[sub_resource type="BoxShape3D" id="3_wall_shape"]
+size = Vector3(0.5, 16, 20)
+
+[sub_resource type="BoxMesh" id="4_wall_mesh"]
+size = Vector3(0.5, 16, 20)
+
+[sub_resource type="BoxShape3D" id="5_ceiling_shape"]
+size = Vector3(20, 0.4, 20)
+
+[sub_resource type="BoxMesh" id="6_ceiling_mesh"]
+size = Vector3(20, 0.4, 20)
+
+[node name="LevelDebug01" type="Node3D"]
+
+[node name="Ground" type="StaticBody3D" parent="."]
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Ground"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.2, 0)
+shape = SubResource("1_ground_shape")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Ground"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.2, 0)
+mesh = SubResource("2_ground_mesh")
+
+[node name="LevelOneRoom" type="Node3D" parent="."]
+
+[node name="LeftWall" type="StaticBody3D" parent="LevelOneRoom"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 8, 0)
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="LevelOneRoom/LeftWall"]
+shape = SubResource("3_wall_shape")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="LevelOneRoom/LeftWall"]
+mesh = SubResource("4_wall_mesh")
+
+[node name="RightWall" type="StaticBody3D" parent="LevelOneRoom"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 8, 0)
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="LevelOneRoom/RightWall"]
+shape = SubResource("3_wall_shape")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="LevelOneRoom/RightWall"]
+mesh = SubResource("4_wall_mesh")
+
+[node name="FrontWall" type="StaticBody3D" parent="LevelOneRoom"]
+transform = Transform3D(-3.6199901e-06, 0, 1, 0, 1, 0, -1, 0, -3.6199901e-06, 0, 8, -10)
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="LevelOneRoom/FrontWall"]
+shape = SubResource("3_wall_shape")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="LevelOneRoom/FrontWall"]
+mesh = SubResource("4_wall_mesh")
+
+[node name="BackWall" type="StaticBody3D" parent="LevelOneRoom"]
+transform = Transform3D(-3.6199901e-06, 0, 1, 0, 1, 0, -1, 0, -3.6199901e-06, 0, 8, 10)
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="LevelOneRoom/BackWall"]
+shape = SubResource("3_wall_shape")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="LevelOneRoom/BackWall"]
+mesh = SubResource("4_wall_mesh")
+
+[node name="Ceiling" type="StaticBody3D" parent="LevelOneRoom"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 16.6, 0)
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="LevelOneRoom/Ceiling"]
+shape = SubResource("5_ceiling_shape")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="LevelOneRoom/Ceiling"]
+mesh = SubResource("6_ceiling_mesh")
