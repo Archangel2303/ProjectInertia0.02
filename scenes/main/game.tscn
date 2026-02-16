@@ -1,0 +1,173 @@
+[gd_scene load_steps=20 format=3]
+
+[ext_resource type="Script" path="res://scripts/game/game_controller.gd" id="1_game_script"]
+[ext_resource type="Script" path="res://scripts/player/gun.gd" id="2_gun_script"]
+[ext_resource type="Script" path="res://scripts/player/components/spin_component.gd" id="3_spin_script"]
+[ext_resource type="Script" path="res://scripts/player/components/ammo_component.gd" id="4_ammo_script"]
+[ext_resource type="Script" path="res://scripts/player/components/fire_component.gd" id="5_fire_script"]
+[ext_resource type="Script" path="res://scripts/player/components/bounce_component.gd" id="6_bounce_script"]
+[ext_resource type="Script" path="res://scripts/game/enemy_spawner.gd" id="7_spawner_script"]
+[ext_resource type="PackedScene" path="res://scenes/ui/hud.tscn" id="8_hud_scene"]
+[ext_resource type="Script" path="res://scripts/game/third_person_camera.gd" id="9_camera_script"]
+[ext_resource type="Script" path="res://scripts/game/endless_chunk_manager.gd" id="10_chunk_script"]
+
+[sub_resource type="BoxShape3D" id="1_ground_shape"]
+size = Vector3(35, 0.3, 35)
+
+[sub_resource type="BoxMesh" id="2_ground_mesh"]
+size = Vector3(35, 0.3, 35)
+
+[sub_resource type="CapsuleMesh" id="3_gun_mesh"]
+radius = 0.35
+height = 0.9
+
+[sub_resource type="SphereMesh" id="4_spawn_point_mesh"]
+radius = 0.08
+
+[sub_resource type="CapsuleShape3D" id="5_gun_shape"]
+radius = 0.35
+height = 0.9
+
+[sub_resource type="BoxShape3D" id="6_wall_shape"]
+size = Vector3(0.5, 16.0, 20.0)
+
+[sub_resource type="BoxMesh" id="7_wall_mesh"]
+size = Vector3(0.5, 16.0, 20.0)
+
+[sub_resource type="BoxShape3D" id="8_ceiling_shape"]
+size = Vector3(20.0, 0.4, 20.0)
+
+[sub_resource type="BoxMesh" id="9_ceiling_mesh"]
+size = Vector3(20.0, 0.4, 20.0)
+
+[node name="Game" type="Node3D"]
+script = ExtResource("1_game_script")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+rotation = Vector3(-0.9, 0.0, 0.0)
+light_energy = 1.25
+
+[node name="Camera3D" type="Camera3D" parent="."]
+position = Vector3(0, 14, 14)
+rotation = Vector3(-0.68, 0, 0)
+current = true
+script = ExtResource("9_camera_script")
+target_path = NodePath("../Gun")
+spawn_point_path = NodePath("../Gun/BulletSpawnPoint")
+third_person_offset = Vector3(0, 2.1, 6)
+look_height = 0.8
+
+[node name="Ground" type="StaticBody3D" parent="."]
+collision_layer = 1
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Ground"]
+shape = SubResource("1_ground_shape")
+position = Vector3(0, -0.2, 0)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Ground"]
+mesh = SubResource("2_ground_mesh")
+position = Vector3(0, -0.2, 0)
+
+[node name="EndlessChunkManager" type="Node3D" parent="."]
+script = ExtResource("10_chunk_script")
+player_path = NodePath("../Gun")
+
+[node name="LevelOneRoom" type="Node3D" parent="."]
+
+[node name="LeftWall" type="StaticBody3D" parent="LevelOneRoom"]
+collision_layer = 1
+collision_mask = 0
+position = Vector3(-10, 8.0, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="LevelOneRoom/LeftWall"]
+shape = SubResource("6_wall_shape")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="LevelOneRoom/LeftWall"]
+mesh = SubResource("7_wall_mesh")
+
+[node name="RightWall" type="StaticBody3D" parent="LevelOneRoom"]
+collision_layer = 1
+collision_mask = 0
+position = Vector3(10, 8.0, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="LevelOneRoom/RightWall"]
+shape = SubResource("6_wall_shape")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="LevelOneRoom/RightWall"]
+mesh = SubResource("7_wall_mesh")
+
+[node name="FrontWall" type="StaticBody3D" parent="LevelOneRoom"]
+collision_layer = 1
+collision_mask = 0
+position = Vector3(0, 8.0, -10)
+rotation = Vector3(0, 1.5708, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="LevelOneRoom/FrontWall"]
+shape = SubResource("6_wall_shape")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="LevelOneRoom/FrontWall"]
+mesh = SubResource("7_wall_mesh")
+
+[node name="BackWall" type="StaticBody3D" parent="LevelOneRoom"]
+collision_layer = 1
+collision_mask = 0
+position = Vector3(0, 8.0, 10)
+rotation = Vector3(0, 1.5708, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="LevelOneRoom/BackWall"]
+shape = SubResource("6_wall_shape")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="LevelOneRoom/BackWall"]
+mesh = SubResource("7_wall_mesh")
+
+[node name="Ceiling" type="StaticBody3D" parent="LevelOneRoom"]
+collision_layer = 1
+collision_mask = 0
+position = Vector3(0, 16.6, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="LevelOneRoom/Ceiling"]
+shape = SubResource("8_ceiling_shape")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="LevelOneRoom/Ceiling"]
+mesh = SubResource("9_ceiling_mesh")
+
+[node name="Gun" type="CharacterBody3D" parent="."]
+script = ExtResource("2_gun_script")
+position = Vector3(0, 0.8, 0)
+collision_layer = 1
+collision_mask = 3
+use_model_wrapper = true
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Gun"]
+shape = SubResource("5_gun_shape")
+position = Vector3(0, 0.45, 0)
+
+[node name="Body" type="MeshInstance3D" parent="Gun"]
+mesh = SubResource("3_gun_mesh")
+rotation = Vector3(0, 0, 1.5708)
+
+[node name="VisualAnchor" type="Node3D" parent="Gun"]
+
+[node name="BulletSpawnPoint" type="Marker3D" parent="Gun"]
+position = Vector3(0, 0.14, -0.42)
+
+[node name="SpawnPointVisual" type="MeshInstance3D" parent="Gun/BulletSpawnPoint"]
+mesh = SubResource("4_spawn_point_mesh")
+
+[node name="SpinComponent" type="Node" parent="Gun"]
+script = ExtResource("3_spin_script")
+
+[node name="AmmoComponent" type="Node" parent="Gun"]
+script = ExtResource("4_ammo_script")
+
+[node name="FireComponent" type="Node" parent="Gun"]
+script = ExtResource("5_fire_script")
+
+[node name="BounceComponent" type="Node" parent="Gun"]
+script = ExtResource("6_bounce_script")
+
+[node name="EnemySpawner" type="Node3D" parent="."]
+script = ExtResource("7_spawner_script")
+
+[node name="HUD" parent="." instance=ExtResource("8_hud_scene")]

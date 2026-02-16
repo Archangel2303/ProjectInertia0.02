@@ -11,12 +11,33 @@ config_version=5
 [application]
 
 config/name="ProjectInertia0.02"
+run/main_scene="res://scenes/ui/main_menu.tscn"
 config/features=PackedStringArray("4.6", "Mobile")
 config/icon="res://icon.svg"
+
+[autoload]
+
+GameSession="*res://scripts/core/game_session.gd"
+AdService="*res://scripts/core/ad_service.gd"
+SkinManager="*res://scripts/core/skin_manager.gd"
 
 [physics]
 
 3d/physics_engine="Jolt Physics"
+
+[recoil]
+
+ads/use_test_ids=true
+ads/plugin_singleton=""
+ads/android_rewarded_unit_id=""
+ads/ios_rewarded_unit_id=""
+ads/android_banner_unit_id=""
+ads/ios_banner_unit_id=""
+ads/steam/plugin_singleton=""
+ads/steam/rewarded_offer_id="rewarded_default"
+ads/steam/banner_placement="menu_bottom"
+ads/steam/fallback_rewarded_available=true
+ads/steam/fallback_grants_reward=true
 
 [rendering]
 

@@ -1,0 +1,5 @@
+[gd_scene format=3 uid="uid://celg46w7vst2g"]
+
+[ext_resource type="PackedScene" uid="uid://buy4378nt7ljt" path="res://assets/visual/Enemy/proportional_low_poly_man__free_download.glb" id="1_twuh0"]
+
+[node name="Sketchfab_Scene" unique_id=883276970 instance=ExtResource("1_twuh0")]

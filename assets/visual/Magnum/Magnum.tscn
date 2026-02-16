@@ -1,0 +1,5 @@
+[gd_scene format=3 uid="uid://bnmi22pcphrc5"]
+
+[ext_resource type="PackedScene" uid="uid://d1paar7a586p8" path="res://assets/visual/Magnum/smith__wesson_500_magnum.glb" id="1_3dw1b"]
+
+[node name="Sketchfab_Scene" unique_id=887031682 instance=ExtResource("1_3dw1b")]

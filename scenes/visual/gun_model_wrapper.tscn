@@ -1,0 +1,10 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="PackedScene" path="res://assets/visual/Magnum/Magnum.tscn" id="1_magnum"]
+
+[node name="GunModelWrapper" type="Node3D"]
+
+[node name="Model" parent="." instance=ExtResource("1_magnum")]
+position = Vector3(0, 0.14, -0.2)
+rotation = Vector3(0, 3.14159, 0)
+scale = Vector3(0.0646, 0.0646, 0.0646)
