@@ -1,6 +1,10 @@
 extends RefCounted
 class_name ScoreSystem
 
+# ScoreSystem is a stateful facade for scoring runtime data.
+# Pure scoring formulas are delegated to ScoreCalculator so they can be reused/tested.
+const ScoreCalculatorScript = preload("res://scripts/core/score/score_calculator.gd")
+
 enum HitLocation {
 	LIMBS,
 	TORSO,
@@ -53,69 +57,38 @@ func tick(delta: float, slow_time_active: bool) -> void:
 		slow_time_usage_seconds += delta
 
 func kill_score(hit_location: int) -> int:
-	# Keep this as the single source of truth for region-based kill values.
-	match hit_location:
-		HitLocation.LIMBS:
-			return limb_points
-		HitLocation.TORSO:
-			return torso_points
-		HitLocation.MIDSECTION:
-			return midsection_points
-		HitLocation.BACK:
-			return back_points
-		HitLocation.HEAD:
-			return head_points
-		_:
-			return torso_points
+	return ScoreCalculatorScript.kill_score(hit_location, limb_points, torso_points, midsection_points, back_points, head_points, torso_points)
 
 func record_kill(hit_location: int, rotation_at_kill: float) -> void:
 	# Records kill score and applies rotation combo logic in one place.
 	# `rotation_at_kill` must be an unwrapped cumulative rotation value.
 	var base_score := kill_score(hit_location)
 	kill_score_total += base_score
-
-	if not is_inf(last_kill_rotation_unwrapped):
-		var rotation_delta := absf(rotation_at_kill - last_kill_rotation_unwrapped)
-		if rotation_delta < combo_window_degrees:
-			var combo_bonus := int(round(float(base_score) * (combo_multiplier - 1.0)))
-			rotation_combo_bonus_total += maxi(combo_bonus, 0)
+	rotation_combo_bonus_total += ScoreCalculatorScript.combo_bonus(
+		base_score,
+		rotation_at_kill,
+		last_kill_rotation_unwrapped,
+		combo_window_degrees,
+		combo_multiplier
+	)
 
 	last_kill_rotation_unwrapped = rotation_at_kill
 
 func compute_level_score(remaining_ammo: int) -> Dictionary:
-	# Final level score composition:
-	# clear-time reward - slow-time penalty + kill score + combo bonus + ammo bonus.
-	var clear_time_score := maxi(
-		0,
-		int(round(float(clear_time_max_reward) - clear_time_seconds * clear_time_penalty_per_second))
+	return ScoreCalculatorScript.level_breakdown(
+		clear_time_seconds,
+		slow_time_usage_seconds,
+		kill_score_total,
+		rotation_combo_bonus_total,
+		remaining_ammo,
+		clear_time_max_reward,
+		clear_time_penalty_per_second,
+		slow_time_penalty_per_second,
+		ammo_bonus_value
 	)
-	var slow_time_penalty := maxi(0, int(round(slow_time_usage_seconds * slow_time_penalty_per_second)))
-	var remaining_ammo_bonus := maxi(0, remaining_ammo) * ammo_bonus_value
-	var total := clear_time_score - slow_time_penalty + kill_score_total + rotation_combo_bonus_total + remaining_ammo_bonus
-
-	return {
-		"clear_time_score": clear_time_score,
-		"slow_time_penalty": slow_time_penalty,
-		"kill_score_total": kill_score_total,
-		"rotation_combo_bonus": rotation_combo_bonus_total,
-		"remaining_ammo_bonus": remaining_ammo_bonus,
-		"total_score": total,
-	}
 
 func compute_endless_score(enemies_killed: int, survival_time_seconds: float) -> int:
-	# Endless score scales with both kill throughput and survival duration.
-	# Tune constants here without changing level scoring logic.
-	var kill_points_total := enemies_killed * 100
-	var survival_score := int(round(survival_time_seconds * 8.0))
-	var scale_bonus := int(round(float(enemies_killed) * survival_time_seconds * 0.15))
-	return kill_points_total + survival_score + scale_bonus
+	return ScoreCalculatorScript.endless_score(enemies_killed, survival_time_seconds)
 
 func all_enemies_dead(enemies: Array[Node]) -> bool:
-	# Returns true only when no valid enemy instance remains in the provided list.
-	for enemy in enemies:
-		if enemy == null or not is_instance_valid(enemy):
-			continue
-		if enemy.is_queued_for_deletion():
-			continue
-		return false
-	return true
+	return ScoreCalculatorScript.all_enemies_dead(enemies)

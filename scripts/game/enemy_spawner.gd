@@ -1,15 +1,18 @@
 extends Node3D
 class_name EnemySpawner
 
+# EnemySpawner handles when/where enemies appear.
+# Balance curves and wave composition are delegated to shared spawn utilities.
 signal enemy_spawned(enemy: Node)
 
 const MODE_LEVEL := 0
 const MODE_ENDLESS := 1
 
 const ENEMY_SCENE := preload("res://scenes/enemies/enemy.tscn")
+const EnemySpawnBalanceScript = preload("res://scripts/core/spawn/enemy_spawn_balance.gd")
 const LEVEL1_STATIC_LAYOUT: Array[Dictionary] = [
 	{"type": 0, "pos": Vector3(0.0, 0.55, -5.0)},
-	{"type": 1, "pos": Vector3(0.0, 0.55, 5.0)},
+	{"type": 2, "pos": Vector3(0.0, 0.55, 5.0)},
 ]
 
 @export var spawn_radius: float = 14.0
@@ -64,17 +67,17 @@ func _process_endless_spawn(delta: float) -> void:
 	_endless_elapsed_total += delta
 	if _spawn_timer > 0.0:
 		return
-	var difficulty := _endless_difficulty()
-	var max_alive := _endless_max_alive(difficulty)
+	var difficulty := EnemySpawnBalanceScript.endless_difficulty(_endless_elapsed_total, _endless_player_kills)
+	var max_alive := EnemySpawnBalanceScript.endless_max_alive(difficulty)
 	if _alive_count >= max_alive:
 		_spawn_timer = 0.2
 		return
 	var slots := max_alive - _alive_count
-	var burst_count := mini(slots, _endless_burst_count(difficulty))
+	var burst_count := mini(slots, EnemySpawnBalanceScript.endless_burst_count(difficulty))
 	for i in range(burst_count):
-		var enemy_type := _pick_enemy_type_for_difficulty(difficulty)
+		var enemy_type := EnemySpawnBalanceScript.pick_enemy_type_for_difficulty(_rng, difficulty)
 		_spawn_enemy(enemy_type)
-	var cadence := _endless_spawn_cadence(difficulty)
+	var cadence := EnemySpawnBalanceScript.endless_spawn_cadence(difficulty)
 	_spawn_timer = _rng.randf_range(cadence * 0.75, cadence * 1.25)
 
 func _spawn_enemy(enemy_type: int) -> void:
@@ -111,64 +114,7 @@ func _on_enemy_exited() -> void:
 	_alive_count = maxi(0, _alive_count - 1)
 
 func _build_level_wave(level_index: int) -> Array[int]:
-	var wave: Array[int] = []
-	var base_count := 12 + level_index * 4
-	for i in range(base_count):
-		if i % 7 == 0:
-			wave.append(3)
-		elif i % 5 == 0:
-			wave.append(2)
-		elif i % 3 == 0:
-			wave.append(1)
-		else:
-			wave.append(0)
-	return wave
-
-func _endless_difficulty() -> float:
-	var time_factor := _endless_elapsed_total / 30.0
-	var kill_factor := float(_endless_player_kills) * 0.07
-	return minf(10.0, 1.0 + time_factor + kill_factor)
-
-func _endless_max_alive(difficulty: float) -> int:
-	return int(clampi(4 + int(round(difficulty * 1.3)), 4, 18))
-
-func _endless_burst_count(difficulty: float) -> int:
-	return int(clampi(1 + int(floor(difficulty / 2.0)), 1, 4))
-
-func _endless_spawn_cadence(difficulty: float) -> float:
-	return clampf(1.8 - difficulty * 0.12, 0.45, 1.8)
-
-func _pick_enemy_type_for_difficulty(difficulty: float) -> int:
-	var roll := _rng.randf()
-	if difficulty < 2.5:
-		if roll < 0.70:
-			return 0
-		if roll < 0.90:
-			return 1
-		return 2
-	if difficulty < 5.0:
-		if roll < 0.45:
-			return 0
-		if roll < 0.70:
-			return 1
-		if roll < 0.88:
-			return 2
-		return 3
-	if difficulty < 7.5:
-		if roll < 0.25:
-			return 0
-		if roll < 0.50:
-			return 1
-		if roll < 0.75:
-			return 2
-		return 3
-	if roll < 0.15:
-		return 0
-	if roll < 0.40:
-		return 1
-	if roll < 0.65:
-		return 2
-	return 3
+	return EnemySpawnBalanceScript.build_level_wave(level_index)
 
 func _reset_runtime_state() -> void:
 	_wave_queue.clear()

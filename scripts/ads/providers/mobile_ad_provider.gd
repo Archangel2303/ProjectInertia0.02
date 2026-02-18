@@ -1,5 +1,11 @@
 extends "res://scripts/ads/ad_provider_base.gd"
 
+# Mobile provider adapts plugin-specific method names to the common ad interface.
+# Signal bridging/settings reads are delegated to shared provider utilities.
+
+const ProviderSignalBridgeScript = preload("res://scripts/ads/providers/provider_signal_bridge.gd")
+const ProviderSettingsUtilScript = preload("res://scripts/ads/providers/provider_settings_util.gd")
+
 const REWARDED_TEST_ANDROID := "ca-app-pub-3940256099942544/5224354917"
 const REWARDED_TEST_IOS := "ca-app-pub-3940256099942544/1712485313"
 const BANNER_TEST_ANDROID := "ca-app-pub-3940256099942544/6300978111"
@@ -121,13 +127,7 @@ func _setup_sdk() -> void:
 	_connect_if_signal_exists("rewarded_ad_closed", _on_rewarded_closed)
 
 func _connect_if_signal_exists(signal_name: String, handler: Callable) -> void:
-	if _sdk == null:
-		return
-	if not _sdk.has_signal(signal_name):
-		return
-	if _sdk.is_connected(signal_name, handler):
-		return
-	_sdk.connect(signal_name, handler)
+	ProviderSignalBridgeScript.connect_if_signal_exists(_sdk, signal_name, handler)
 
 func _preload_rewarded() -> void:
 	if _sdk == null:
@@ -160,16 +160,10 @@ func _use_test_ids() -> bool:
 	return _setting_bool("use_test_ids", true)
 
 func _setting_string(key: String, default_value: String) -> String:
-	var full_key := "%s%s" % [SETTINGS_PREFIX, key]
-	if not ProjectSettings.has_setting(full_key):
-		return default_value
-	return str(ProjectSettings.get_setting(full_key))
+	return ProviderSettingsUtilScript.setting_string(SETTINGS_PREFIX, key, default_value)
 
 func _setting_bool(key: String, default_value: bool) -> bool:
-	var full_key := "%s%s" % [SETTINGS_PREFIX, key]
-	if not ProjectSettings.has_setting(full_key):
-		return default_value
-	return bool(ProjectSettings.get_setting(full_key))
+	return ProviderSettingsUtilScript.setting_bool(SETTINGS_PREFIX, key, default_value)
 
 func _on_rewarded_loaded(_args: Variant = null) -> void:
 	_rewarded_loaded = true

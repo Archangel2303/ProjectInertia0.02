@@ -1,5 +1,7 @@
 extends Camera3D
 
+const CameraOrbitMathScript = preload("res://scripts/core/math/camera_orbit_math.gd")
+
 enum CameraState {
 	DRIFT,
 	LAUNCH,
@@ -53,18 +55,28 @@ enum CameraState {
 
 @export_group("Slow Time Modifier")
 @export var slow_yaw_cap_multiplier: float = 7.0
-@export var slow_distance_offset: float = -0.45
-@export var slow_aim_weight_bias: float = 0.45
-@export var slow_damping_multiplier: float = 3.1
+@export var slow_distance_offset: float = -0.62
+@export var slow_aim_weight_bias: float = 0.58
+@export var slow_damping_multiplier: float = 3.8
+@export var slow_align_duration: float = 0.13
+@export var slow_align_yaw_cap_multiplier: float = 28.0
+@export var slow_align_damping_multiplier: float = 12.5
+@export var slow_align_distance_offset: float = -0.98
+@export var slow_swing_vel_weight: float = 0.24
+@export var slow_swing_aim_weight: float = 0.76
+@export var slow_swing_look_ahead: float = 1.05
+@export var slow_align_angle_complete_deg: float = 6.0
+@export var slow_blend_in_speed: float = 14.0
+@export var slow_blend_out_speed: float = 10.0
 
 @export_group("Fired Modifier")
 @export var fired_bias_duration: float = 0.2
 @export var fired_aim_weight_bias: float = 0.07
 @export var fired_damping_multiplier: float = 0.93
-@export var fired_orbit_duration: float = 0.45
+@export var fired_orbit_duration: float = 0.36
 @export var fired_yaw_cap_multiplier: float = 8.0
-@export var fired_orbit_damping_multiplier: float = 4.6
-@export var fired_look_ahead: float = 1.2
+@export var fired_orbit_damping_multiplier: float = 5.4
+@export var fired_look_ahead: float = 1.35
 
 @export_group("Collision")
 @export var collision_mask: int = 1
@@ -72,6 +84,8 @@ enum CameraState {
 @export var collision_buffer: float = 0.2
 @export var collision_smoothing: float = 18.0
 @export var collision_recovery_smoothing: float = 8.0
+@export var collision_side_probe_scale: float = 0.95
+@export var collision_up_probe_scale: float = 0.65
 
 @export_group("Debug")
 @export var debug_state_name: bool = false
@@ -90,6 +104,8 @@ var _impact_timer: float = 0.0
 var _fired_timer: float = 0.0
 var _shot_orbit_timer: float = 0.0
 var _shot_yaw: float = 0.0
+var _slow_align_timer: float = 0.0
+var _slow_weight: float = 0.0
 
 var _current_yaw: float = 0.0
 var _current_distance: float = 6.0
@@ -165,6 +181,11 @@ func _physics_process(delta: float) -> void:
 		_shot_orbit_timer = max(0.0, _shot_orbit_timer - delta)
 	if _impact_timer > 0.0:
 		_impact_timer = max(0.0, _impact_timer - delta)
+	if _slow_align_timer > 0.0:
+		_slow_align_timer = max(0.0, _slow_align_timer - delta)
+	var slow_target := 1.0 if _slow_time_active else 0.0
+	var slow_blend_speed := slow_blend_in_speed if _slow_time_active else slow_blend_out_speed
+	_slow_weight = lerp(_slow_weight, slow_target, 1.0 - exp(-slow_blend_speed * delta))
 
 	if _impact_timer > 0.0:
 		_set_state(CameraState.IMPACT_STABILIZE)
@@ -213,12 +234,22 @@ func _physics_process(delta: float) -> void:
 		look_ahead = 0.0
 		damping = drift_damping
 
-	if _slow_time_active:
-		yaw_cap_deg *= slow_yaw_cap_multiplier
-		target_distance += slow_distance_offset
-		vel_weight = max(0.0, vel_weight - slow_aim_weight_bias)
-		aim_weight += slow_aim_weight_bias
-		damping *= slow_damping_multiplier
+	if _slow_weight > 0.001:
+		var align_weight := 0.0
+		if _slow_time_active and _slow_align_timer > 0.0:
+			align_weight = _slow_weight
+		var yaw_mult := lerpf(1.0, slow_yaw_cap_multiplier, _slow_weight)
+		yaw_mult = lerpf(yaw_mult, slow_align_yaw_cap_multiplier, align_weight)
+		var damping_mult := lerpf(1.0, slow_damping_multiplier, _slow_weight)
+		damping_mult = lerpf(damping_mult, slow_align_damping_multiplier, align_weight)
+		var distance_offset := lerpf(0.0, slow_distance_offset, _slow_weight)
+		distance_offset = lerpf(distance_offset, slow_align_distance_offset, align_weight)
+		yaw_cap_deg *= yaw_mult
+		target_distance += distance_offset
+		vel_weight = lerpf(vel_weight, slow_swing_vel_weight, _slow_weight)
+		aim_weight = lerpf(aim_weight, slow_swing_aim_weight, _slow_weight)
+		look_ahead = lerpf(look_ahead, max(look_ahead, slow_swing_look_ahead), _slow_weight)
+		damping *= damping_mult
 
 	if _fired_timer > 0.0:
 		aim_weight += fired_aim_weight_bias
@@ -230,9 +261,9 @@ func _physics_process(delta: float) -> void:
 		look_ahead = max(look_ahead, fired_look_ahead)
 
 	target_distance = clamp(target_distance, base_distance_min, base_distance_max)
-	var weight_sum: float = max(0.001, vel_weight + aim_weight)
-	vel_weight /= weight_sum
-	aim_weight /= weight_sum
+	var normalized_weights := CameraOrbitMathScript.normalize_weights(vel_weight, aim_weight)
+	vel_weight = normalized_weights.x
+	aim_weight = normalized_weights.y
 
 	var aim_dir := Vector3.FORWARD
 	if _spawn_point != null:
@@ -245,39 +276,26 @@ func _physics_process(delta: float) -> void:
 	else:
 		aim_dir = aim_dir.normalized()
 
-	var vel_dir := Vector3.ZERO
-	if speed_xz > 0.01:
-		vel_dir = Vector3(velocity.x, 0.0, velocity.z).normalized()
+	if _slow_time_active:
+		var gun_yaw := atan2(aim_dir.x, aim_dir.z)
+		var yaw_error := absf(wrapf(gun_yaw - _current_yaw, -PI, PI))
+		if yaw_error > deg_to_rad(slow_align_angle_complete_deg):
+			_slow_align_timer = maxf(_slow_align_timer, delta * 2.0)
 
-	var blend_dir := aim_dir
-	if speed_xz > 0.08 and is_event_orbiting:
-		blend_dir = vel_dir * vel_weight + aim_dir * aim_weight
-		if blend_dir.length_squared() < 0.0001:
-			blend_dir = aim_dir
-		else:
-			blend_dir = blend_dir.normalized()
+	var blend_dir := CameraOrbitMathScript.blended_direction(aim_dir, velocity, speed_xz, vel_weight, aim_weight, is_event_orbiting)
 
-	var desired_yaw := _current_yaw
-	var has_orbit_target := false
-	if _shot_orbit_timer > 0.0:
-		desired_yaw = _shot_yaw
-		has_orbit_target = true
-	elif _slow_time_active:
-		desired_yaw = atan2(aim_dir.x, aim_dir.z)
-		has_orbit_target = true
-	else:
-		desired_yaw = _current_yaw
-	var time_scale_comp: float = 1.0 / max(Engine.time_scale, 0.15)
-	var yaw_cap_rad: float = deg_to_rad(max(1.0, yaw_cap_deg)) * delta * time_scale_comp
-	var yaw_delta := wrapf(desired_yaw - _current_yaw, -PI, PI)
-	yaw_delta = clamp(yaw_delta, -yaw_cap_rad, yaw_cap_rad)
-	var capped_target_yaw := _current_yaw + yaw_delta
+	var desired_yaw := CameraOrbitMathScript.desired_yaw(_current_yaw, aim_dir, _shot_orbit_timer, _slow_time_active, _shot_yaw)
+	var has_orbit_target := CameraOrbitMathScript.has_orbit_target(_shot_orbit_timer, _slow_time_active)
 	var yaw_lerp := 1.0 - exp(-damping * delta)
-	if _shot_orbit_timer > 0.0:
-		var shot_lerp := 1.0 - exp(-(damping * 1.8) * delta)
-		_current_yaw = lerp_angle(_current_yaw, desired_yaw, shot_lerp)
-	else:
-		_current_yaw = lerp_angle(_current_yaw, capped_target_yaw, yaw_lerp)
+	_current_yaw = CameraOrbitMathScript.step_yaw(
+		_current_yaw,
+		desired_yaw,
+		yaw_cap_deg,
+		damping,
+		delta,
+		Engine.time_scale,
+		_shot_orbit_timer
+	)
 
 	_current_distance = lerp(_current_distance, target_distance, yaw_lerp)
 	_current_look_ahead = lerp(_current_look_ahead, look_ahead, yaw_lerp)
@@ -285,21 +303,47 @@ func _physics_process(delta: float) -> void:
 
 	var forward_flat := Vector3(sin(_current_yaw), 0.0, cos(_current_yaw)).normalized()
 	var effective_look_ahead := _current_look_ahead if has_orbit_target else 0.0
+	if _slow_time_active:
+		effective_look_ahead = 0.0
 	var target_anchor := _target.global_position + Vector3(0.0, look_height, 0.0) + forward_flat * effective_look_ahead
 	var desired_position := target_anchor - forward_flat * _current_distance + Vector3(third_person_offset.x, max(0.0, third_person_offset.y - look_height), 0.0)
 
 	_ray_query.from = target_anchor
 	_ray_query.to = desired_position
 	_ray_query.collision_mask = collision_mask
-	var hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(_ray_query)
-	if not hit.is_empty():
-		var hit_pos := hit["position"] as Vector3
-		var hit_dist := target_anchor.distance_to(hit_pos)
+	var path := desired_position - target_anchor
+	var path_length := path.length()
+	var path_dir := path.normalized() if path_length > 0.0001 else -forward_flat
+	var right_axis := path_dir.cross(Vector3.UP).normalized()
+	if right_axis.length_squared() < 0.0001:
+		right_axis = Vector3.RIGHT
+	var probe_side := right_axis * (collision_radius * collision_side_probe_scale)
+	var probe_up := Vector3.UP * (collision_radius * collision_up_probe_scale)
+	var probe_offsets := [
+		Vector3.ZERO,
+		probe_side,
+		-probe_side,
+		probe_up,
+		-probe_up,
+	]
+	var safe_path_distance := path_length
+	var had_collision := false
+	for probe in probe_offsets:
+		_ray_query.from = target_anchor + probe
+		_ray_query.to = desired_position + probe
+		var probe_hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(_ray_query)
+		if probe_hit.is_empty():
+			continue
+		had_collision = true
+		var hit_pos := probe_hit["position"] as Vector3
+		var hit_dist := _ray_query.from.distance_to(hit_pos)
 		var safe_dist: float = max(0.0, hit_dist - (collision_buffer + collision_radius))
-		desired_position = target_anchor - forward_flat * safe_dist
+		safe_path_distance = minf(safe_path_distance, safe_dist)
+	if had_collision:
+		desired_position = target_anchor + path_dir * safe_path_distance
 
 	var distance_to_desired := global_position.distance_to(desired_position)
-	var smoothing := collision_smoothing if not hit.is_empty() else collision_recovery_smoothing
+	var smoothing := collision_smoothing if had_collision else collision_recovery_smoothing
 	var position_lerp: float = clamp((1.0 - exp(-smoothing * delta)) * min(1.0, distance_to_desired + 0.15), 0.0, 1.0)
 	global_position = global_position.lerp(desired_position, position_lerp)
 
@@ -307,6 +351,10 @@ func _physics_process(delta: float) -> void:
 	rotation.z = 0.0
 
 func set_slow_time(active: bool) -> void:
+	if active and not _slow_time_active:
+		_slow_align_timer = slow_align_duration
+	if not active:
+		_slow_align_timer = 0.0
 	_slow_time_active = active
 
 func set_slow_time_active(active: bool) -> void:

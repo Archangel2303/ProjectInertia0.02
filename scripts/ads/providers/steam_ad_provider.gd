@@ -1,5 +1,11 @@
 extends "res://scripts/ads/ad_provider_base.gd"
 
+# Steam provider maps whichever Steam plugin is present to our common ad API.
+# Shared utilities handle settings and signal-connection boilerplate.
+
+const ProviderSignalBridgeScript = preload("res://scripts/ads/providers/provider_signal_bridge.gd")
+const ProviderSettingsUtilScript = preload("res://scripts/ads/providers/provider_settings_util.gd")
+
 const SETTINGS_PREFIX := "recoil/ads/steam/"
 
 var _sdk: Object
@@ -102,13 +108,7 @@ func _setup_sdk() -> void:
 	_connect_if_signal_exists("rewarded_closed", _on_rewarded_closed)
 
 func _connect_if_signal_exists(signal_name: String, handler: Callable) -> void:
-	if _sdk == null:
-		return
-	if not _sdk.has_signal(signal_name):
-		return
-	if _sdk.is_connected(signal_name, handler):
-		return
-	_sdk.connect(signal_name, handler)
+	ProviderSignalBridgeScript.connect_if_signal_exists(_sdk, signal_name, handler)
 
 func _on_rewarded_granted(_args: Variant = null) -> void:
 	_complete_pending_rewarded(true)
@@ -127,13 +127,7 @@ func _complete_pending_rewarded(granted: bool) -> void:
 	_rewarded_in_flight = false
 
 func _setting_string(key: String, default_value: String) -> String:
-	var full_key := "%s%s" % [SETTINGS_PREFIX, key]
-	if not ProjectSettings.has_setting(full_key):
-		return default_value
-	return str(ProjectSettings.get_setting(full_key))
+	return ProviderSettingsUtilScript.setting_string(SETTINGS_PREFIX, key, default_value)
 
 func _setting_bool(key: String, default_value: bool) -> bool:
-	var full_key := "%s%s" % [SETTINGS_PREFIX, key]
-	if not ProjectSettings.has_setting(full_key):
-		return default_value
-	return bool(ProjectSettings.get_setting(full_key))
+	return ProviderSettingsUtilScript.setting_bool(SETTINGS_PREFIX, key, default_value)

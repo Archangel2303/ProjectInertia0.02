@@ -1,6 +1,8 @@
 extends Node3D
 class_name EndlessChunkManager
 
+const ChunkGridUtilScript = preload("res://scripts/core/world/chunk_grid_util.gd")
+
 # Player path used to determine which chunk to generate around.
 @export var player_path: NodePath
 
@@ -32,7 +34,7 @@ func _process(_delta: float) -> void:
 		if _player == null:
 			return
 
-	var player_chunk := _world_to_chunk(_player.global_position)
+	var player_chunk := ChunkGridUtilScript.world_to_chunk(_player.global_position, chunk_size)
 	if player_chunk != _center_chunk:
 		_center_chunk = player_chunk
 		_generate_visible_chunk_window()
@@ -48,7 +50,7 @@ func set_active(active: bool) -> void:
 		_resolve_player()
 		if _player == null:
 			return
-		_center_chunk = _world_to_chunk(_player.global_position)
+		_center_chunk = ChunkGridUtilScript.world_to_chunk(_player.global_position, chunk_size)
 		_generate_visible_chunk_window()
 		_cleanup_far_chunks()
 		return
@@ -59,11 +61,6 @@ func _resolve_player() -> void:
 	if player_path == NodePath():
 		return
 	_player = get_node_or_null(player_path) as Node3D
-
-func _world_to_chunk(world_pos: Vector3) -> Vector2i:
-	var cx := int(floor(world_pos.x / chunk_size))
-	var cz := int(floor(world_pos.z / chunk_size))
-	return Vector2i(cx, cz)
 
 func _generate_visible_chunk_window() -> void:
 	for x in range(_center_chunk.x - active_radius_chunks, _center_chunk.x + active_radius_chunks + 1):
@@ -99,7 +96,7 @@ func _create_chunk(key: Vector2i) -> Node3D:
 	mesh_instance.position = Vector3(0.0, floor_height, 0.0)
 
 	var material := StandardMaterial3D.new()
-	var checker := 0.82 if ((key.x + key.y) % 2 == 0) else 0.76
+	var checker := ChunkGridUtilScript.checker_value(key)
 	material.albedo_color = Color(checker, checker, checker)
 	mesh_instance.set_surface_override_material(0, material)
 	floor_body.add_child(mesh_instance)
@@ -109,9 +106,7 @@ func _create_chunk(key: Vector2i) -> Node3D:
 func _cleanup_far_chunks() -> void:
 	var keys_to_remove: Array[Vector2i] = []
 	for chunk_key in _chunks.keys():
-		var dx: int = absi(chunk_key.x - _center_chunk.x)
-		var dz: int = absi(chunk_key.y - _center_chunk.y)
-		if dx > cleanup_radius_chunks or dz > cleanup_radius_chunks:
+		if ChunkGridUtilScript.should_cleanup_chunk(chunk_key, _center_chunk, cleanup_radius_chunks):
 			keys_to_remove.append(chunk_key)
 
 	for key in keys_to_remove:

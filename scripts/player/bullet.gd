@@ -1,6 +1,11 @@
 extends Area3D
 
+# Bullet acts as a lightweight collision/messaging container.
+# Classification and lookup logic live in shared combat helpers.
+
 const DEFAULT_MODEL_WRAPPER_SCENE: PackedScene = preload("res://scenes/visual/bullet_model_wrapper.tscn")
+const BulletHitUtilScript = preload("res://scripts/core/combat/bullet_hit_util.gd")
+const VisualWrapperBuilderScript = preload("res://scripts/core/visual/visual_wrapper_builder.gd")
 const HIT_LIMBS := 0
 const HIT_TORSO := 1
 const HIT_MIDSECTION := 2
@@ -41,29 +46,29 @@ func _on_body_entered(body: Node) -> void:
 		queue_free()
 
 func _on_area_entered(area: Area3D) -> void:
-	if not area.is_in_group("enemy_head"):
+	var is_hitbox := area.is_in_group("enemy_hitbox")
+	var is_head_group := area.is_in_group("enemy_head")
+	if not is_hitbox and not is_head_group:
 		return
-	var enemy: Node = area.get_parent()
-	if enemy and enemy.has_method("apply_hit"):
-		enemy.apply_hit(true, HIT_HEAD)
-		queue_free()
+
+	var enemy := BulletHitUtilScript.find_enemy_for_hit_node(area)
+	if enemy == null:
+		return
+
+	var hit_location := HIT_HEAD if is_head_group else HIT_TORSO
+	if area.has_meta("enemy_hit_location"):
+		hit_location = int(area.get_meta("enemy_hit_location"))
+
+	var headshot := hit_location == HIT_HEAD
+	enemy.apply_hit(headshot, hit_location, area)
+	queue_free()
 
 func _classify_hit_location(body: Node) -> int:
-	if not (body is Node3D):
-		return HIT_TORSO
-
-	var body_3d := body as Node3D
-	var local_hit := body_3d.to_local(global_position)
-
-	var enemy_forward := (-body_3d.global_transform.basis.z).normalized()
-	if enemy_forward.dot(_direction.normalized()) > 0.55:
-		return HIT_BACK
-
-	if local_hit.y < 0.35:
-		return HIT_LIMBS
-	if local_hit.y < 0.75:
-		return HIT_MIDSECTION
-	return HIT_TORSO
+	return BulletHitUtilScript.classify_hit_location(
+		body,
+		global_position,
+		_direction
+	)
 
 func _apply_skin() -> void:
 	var session: GameSession = get_node("/root/GameSession") as GameSession
@@ -75,15 +80,4 @@ func _apply_skin() -> void:
 	_mesh.set_surface_override_material(0, material)
 
 func _setup_visual_wrapper() -> void:
-	_mesh.visible = true
-	if not use_model_wrapper:
-		return
-	if model_wrapper_scene == null:
-		return
-	var wrapper: Node = model_wrapper_scene.instantiate()
-	if wrapper == null:
-		return
-	if wrapper is Node3D:
-		_model_wrapper_instance = wrapper as Node3D
-		_visual_anchor.add_child(_model_wrapper_instance)
-		_mesh.visible = false
+	_model_wrapper_instance = VisualWrapperBuilderScript.apply_wrapper(_mesh, _visual_anchor, use_model_wrapper, model_wrapper_scene)

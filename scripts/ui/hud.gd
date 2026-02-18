@@ -1,6 +1,8 @@
 extends CanvasLayer
 class_name Hud
 
+const HudTextsScript = preload("res://scripts/core/ui/hud_texts.gd")
+
 signal fire_pressed
 signal slow_time_changed(active: bool)
 signal extra_bullet_ad_requested
@@ -60,36 +62,40 @@ func set_mode_text(text: String) -> void:
 	_mode_label.text = text
 
 func update_score(score: int) -> void:
-	_score_label.text = "Score: %d" % score
+	_score_label.text = HudTextsScript.score_text(score)
 
 func update_ammo(current: int, max_ammo: int) -> void:
-	_ammo_label.text = "Ammo: %d/%d" % [current, max_ammo]
+	_ammo_label.text = HudTextsScript.ammo_text(current, max_ammo)
 
 func show_extra_bullet_prompt(prompt_visible: bool) -> void:
 	_extra_bullet_prompt.visible = prompt_visible
+	if prompt_visible:
+		_end_panel.visible = false
 
 func set_extra_bullet_ad_enabled(enabled: bool) -> void:
 	_extra_bullet_button.disabled = not enabled
-	_extra_bullet_button.text = "Watch Ad" if enabled else "Ad Unavailable"
+	_extra_bullet_button.text = HudTextsScript.extra_bullet_button_text(enabled)
 
 func is_extra_bullet_prompt_visible() -> bool:
 	return _extra_bullet_prompt.visible
 
 func show_end_panel(cleared: bool, score: int, high_score: int, is_new_high: bool) -> void:
+	_extra_bullet_prompt.visible = false
 	_end_panel.visible = true
-	_end_title.text = "Level Cleared" if cleared else "Run Ended"
-	_end_score.text = "Score: %d" % score
-	_end_high_score.text = "Best: %d%s" % [high_score, " (NEW)" if is_new_high else ""]
+	_end_title.text = HudTextsScript.end_title_text(cleared)
+	_end_score.text = HudTextsScript.score_text(score)
+	_end_high_score.text = HudTextsScript.high_score_text(high_score, is_new_high)
+	set_end_reward_ad_enabled(true)
 
 func refresh_end_panel_score(score: int) -> void:
-	_end_score.text = "Score: %d" % score
+	_end_score.text = HudTextsScript.score_text(score)
+
+func set_end_reward_ad_enabled(enabled: bool, button_text: String = "Watch Ad: +25% Reward") -> void:
+	_end_reward_button.disabled = not enabled
+	_end_reward_button.text = button_text
 
 func update_ad_debug(provider_name: String, can_extra_bullet: bool, can_end_bonus: bool) -> void:
-	_ad_debug_label.text = "Ad: %s\nExtra: %s\nEnd: %s" % [
-		provider_name,
-		"YES" if can_extra_bullet else "NO",
-		"YES" if can_end_bonus else "NO",
-	]
+	_ad_debug_label.text = HudTextsScript.ad_debug_text(provider_name, can_extra_bullet, can_end_bonus)
 
 func set_ad_debug_visible(debug_visible: bool) -> void:
 	_ad_debug_panel.visible = debug_visible

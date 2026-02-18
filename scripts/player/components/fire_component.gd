@@ -14,7 +14,7 @@ func setup(bullet_scene: PackedScene) -> void:
 func tick(delta: float) -> void:
 	_elapsed_since_shot += delta
 
-func try_fire(spawn_point: Node3D, parent_node: Node) -> bool:
+func try_fire(spawn_point: Node3D, parent_node: Node, direction_override: Vector3 = Vector3.ZERO) -> bool:
 	if _bullet_scene == null:
 		return false
 	if _elapsed_since_shot < cooldown_seconds:
@@ -26,6 +26,8 @@ func try_fire(spawn_point: Node3D, parent_node: Node) -> bool:
 	# origin is always at the spawn point regardless of gun orientation.
 	var spawn_transform: Transform3D = spawn_point.global_transform
 	var spawn_direction: Vector3 = (-spawn_transform.basis.z).normalized()
+	if direction_override.length_squared() > 0.0001:
+		spawn_direction = direction_override.normalized()
 
 	var bullet: Node = _bullet_scene.instantiate()
 	parent_node.add_child(bullet)
