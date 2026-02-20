@@ -1,4 +1,4 @@
-extends "res://scripts/ads/ad_provider_base.gd"
+extends RefCounted
 
 # Steam provider maps whichever Steam plugin is present to our common ad API.
 # Shared utilities handle settings and signal-connection boilerplate.

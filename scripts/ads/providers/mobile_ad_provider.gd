@@ -1,4 +1,4 @@
-extends "res://scripts/ads/ad_provider_base.gd"
+extends RefCounted
 
 # Mobile provider adapts plugin-specific method names to the common ad interface.
 # Signal bridging/settings reads are delegated to shared provider utilities.

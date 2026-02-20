@@ -79,7 +79,7 @@ enum CameraState {
 @export var fired_look_ahead: float = 1.35
 
 @export_group("Collision")
-@export var collision_mask: int = 1
+@export var collision_mask: int = 3
 @export var collision_radius: float = 0.25
 @export var collision_buffer: float = 0.2
 @export var collision_smoothing: float = 18.0
@@ -158,7 +158,7 @@ func _ready() -> void:
 	_current_distance = clamp(abs(third_person_offset.z), base_distance_min, base_distance_max)
 	_current_look_ahead = drift_look_ahead
 	_current_damping = base_follow_smoothing
-	_ray_query.collide_with_areas = false
+	_ray_query.collide_with_areas = true
 	_ray_query.collide_with_bodies = true
 	_ray_query.collision_mask = collision_mask
 	if _target_body != null:

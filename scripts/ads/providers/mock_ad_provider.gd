@@ -1,4 +1,4 @@
-extends "res://scripts/ads/ad_provider_base.gd"
+extends RefCounted
 
 func provider_name() -> String:
 	return "mock"
